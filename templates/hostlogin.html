@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Host Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: #fff;
+            width: 468px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .container h1 {
+            margin-bottom: 20px;
+        }
+        .container form {
+            display: flex;
+            flex-direction: column;
+        }
+        .container form input {
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .container form button {
+            padding: 10px;
+            font-size: 16px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .container form button:hover {
+            background-color: #0056b3;
+        }
+        .container .links {
+            display: flex;
+            margin-top: 10px;
+            color: #007BFF;
+        }
+        .container .links a {
+            text-decoration: none;
+            color: #007BFF;
+            margin-right: 16px;
+        }
+    </style>
+</head>
+<body>
+        <div class="container">
+                <i class="fas fa-user-lock fa-3x"></i>
+            <h1>Host Login</h1>
+            <form action="/host_login" method="post">
+                <input type="text" id="election_name" name="election_name" placeholder="Election Name" required>
+                <input type="text" id="drive_folder_link" name="drive_folder_link" placeholder="Google Drive Folder Link" required>
+                <button type="submit">Submit</button>
+            </form>
+            <div class="links">
+            <a href="{{ url_for('index') }}" class="back-button">Back</a>
+            <a href="">Login via Room ID</a> 
+            <a href="/background.png">Guide Me</a></div> 
+        </div>
+    </body>
+</html>
