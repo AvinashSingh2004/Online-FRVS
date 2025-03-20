@@ -85,6 +85,7 @@
         }
         .host {
             display: block;
+            font-size: 13px;
             margin-left: 2px;
             margin-top: 10px;
             margin-bottom: auto;
@@ -95,10 +96,10 @@
     <script>
          function validateForm() {
             const aadhar = document.getElementById('aadhar').value;
-            const voterId = document.getElementById('voter_id').value;
+            const voterId = document.getElementById('name').value;
             const roomId = document.getElementById('room_id').value;
             const aadharPattern = /^\d{12}$/;
-            const voterIdPattern = /^[A-Z0-9]+$/;
+            const namePattern = /^[A-Z\s]+$/;
             const roomIdPattern = /^[A-Z0-9]+$/;
 
             let isValid = true;
@@ -110,14 +111,14 @@
                 document.getElementById('aadhar-error').style.display = 'none';
             }
 
-            if (!voterIdPattern.test(voterId)) {
-                document.getElementById('voter-id-error').style.display = 'block';
+            if (!namePattern.test(voterId)) {
+                document.getElementById('name-error').style.display = 'block';
                 isValid = false;
             } else {
-                document.getElementById('voter-id-error').style.display = 'none';
+                document.getElementById('name-error').style.display = 'none';
             }
 
-            if (!voterIdPattern.test(roomId)) {
+            if (!roomIdPattern.test(roomId)) {
                 document.getElementById('room-id-error').style.display = 'block';
                 isValid = false;
             } else {
@@ -169,7 +170,7 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('aadhar').addEventListener('input', validateForm);
-            document.getElementById('voter_id').addEventListener('input', validateForm);
+            document.getElementById('name').addEventListener('input', validateForm);
             document.getElementById('room_id').addEventListener('input',  function() {
             validateForm();
             saveRoomId();
@@ -204,8 +205,8 @@
             </div>
             <div class="form">
             <form id="main-form" action="/add_faces"  method="post" onsubmit="event.preventDefault(); validateRoomId();">
-                <input type="text" id="voter_id" name="voter_id" placeholder="Enter your Voter ID" required>
-                <div id="voter-id-error" class="error-message">Please enter a valid Voter ID (digits or capital letters only)</div>
+                <input type="text" id="name" name="name" placeholder="Enter your Name" required>
+                <div id="name-error" class="error-message">Please enter a valid Name (uppercase letters and spaces only)</div>
                 <input type="text" id="room_id" name="room_id" placeholder="Enter your Room ID" required>
                 <div id="room-id-error" class="error-message">Please enter a valid Room ID (digits or capital letters only)</div>
                 <input type="text" id="aadhar" name="aadhar" placeholder="Enter your Aadhar number" required>
