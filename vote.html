@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Voting System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            height: 75%;
+            width: 90%;
+            max-width: 1200px;
+        }
+
+        .container h1 {
+            margin-top: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            width: 100%;
+            font-size: 24px;
+            color: #333;
+        }
+
+        .messages, .success-messages {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 5px;
+            color: #007BFF;
+            text-align: center;
+        }
+
+        .video-section {
+            width: 48%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .video-container {
+            width: 100%;
+            max-width: 480px;
+            aspect-ratio: 4 / 3;
+            margin-top: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        .video-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .form-section {
+            width: 48%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        form button {
+            flex: 1 1 calc(50% - 10px);
+            max-width: 200px;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        form button:hover {
+            background-color: #0056b3;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .video-section, .form-section {
+                width: 100%;
+            }
+
+            form button {
+                flex: 1 1 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <div class="video-section">
+            <div class="video-container">
+                <img src="{{ url_for('video_feed') }}" alt="Live Video Feed">
+            </div>
+
+            <div class="messages">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="{{ 'messages' if category == 'error' else 'success-messages' }}">
+                            <p>{{ message }}</p>
+                            {% if category == 'success' %}
+                                <script>hideElements();</script>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h1>Cast Your Vote</h1>
+            <form action="/cast_vote" method="post">
+                <input type="hidden" name="room_id" value="{{ room_id }}">
+                <input type="hidden" name="voter_id" value="{{ voter_id }}">
+                <button type="submit" name="vote" value="{{ candidates.candidate1 }}">Vote for {{ candidates.candidate1 }}</button>
+                <button type="submit" name="vote" value="{{ candidates.candidate2 }}">Vote for {{ candidates.candidate2 }}</button>
+                <button type="submit" name="vote" value="{{ candidates.candidate3 }}">Vote for {{ candidates.candidate3 }}</button>
+                <button type="submit" name="vote" value="{{ candidates.candidate4 }}">Vote for {{ candidates.candidate4 }}</button>
+                <button type="submit" name="vote" value="{{ candidates.candidate5 }}">Vote for {{ candidates.candidate5 }}</button>
+                <button type="submit" name="vote" value="{{ candidates.candidate6 }}">Vote for {{ candidates.candidate6 }}</button>
+                <button type="submit" name="vote" value="{{ candidates.candidate7 }}">Vote for {{ candidates.candidate7 }}</button>
+                <button type="submit" name="vote" value="{{ candidates.candidate8 }}">Vote for {{ candidates.candidate8 }}</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+
+ 
