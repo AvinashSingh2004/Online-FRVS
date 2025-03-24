@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Voting System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .container h1 {
+            margin-bottom: 20px;
+        }
+        .container form {
+            display: flex;
+            flex-direction: column;
+        }
+        .container form input {
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .container form button {
+            padding: 10px;
+            font-size: 16px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .container form button:hover {
+            background-color: #0056b3;
+        }
+        .messages {
+            margin-bottom: 20px;
+            color: red;
+        }
+        .video-container {
+            display: none;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .loading-icon {
+            display: none;
+           text-align: center;
+           margin-top: 20px;
+            margin-bottom: 20px;
+            font-size: 30px;
+            color: #007BFF;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+        }
+        
+        .process-message {
+            display: none;
+            color: rgb(1, 102, 1);
+            text-align: center;
+            font-size: 14px;
+            margin-top: 1px;
+        }
+        .error-message {
+            text-align: left;
+            color: red;
+            font-size: 14px;
+            margin-top: -5px;
+            margin-bottom: 10px;
+            display: none;
+        }
+        .host {
+            display: block;
+            font-size: 13px;
+            margin-left: 2px;
+            margin-top: 10px;
+            margin-bottom: auto;
+            text-decoration: none;
+            color: #007BFF;
+        }
+    </style>
+    <script>
+         function validateForm() {
+            const aadhar = document.getElementById('aadhar').value;
+            const name = document.getElementById('name').value;
+            const roomId = document.getElementById('room_id').value;
+            const aadharPattern = /^\d{12}$/;
+            const namePattern = /^[A-Z\s]+$/;
+            const roomIdPattern = /^[A-Z0-9]+$/;
+
+            let isValid = true;
+
+            if (!aadharPattern.test(aadhar)) {
+                document.getElementById('aadhar-error').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('aadhar-error').style.display = 'none';
+            }
+
+            if (!namePattern.test(name)) {
+                document.getElementById('name-error').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('name-error').style.display = 'none';
+            }
+
+            if (!roomIdPattern.test(roomId)) {
+                document.getElementById('room-id-error').style.display = 'block';
+                isValid = false;
+            } else {
+                document.getElementById('room-id-error').style.display = 'none';
+            }
+
+            return isValid;
+        }
+
+        function showLoadingIcon() {
+        if (validateForm()) {
+            const roomId = document.getElementById('room_id').value;
+            fetch('/validate_room', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ room_id: roomId })
+            }).then(response => {
+                response.json().then(data => {
+                    if (response.ok) {
+                        document.querySelector('.video-container').style.display = 'flex';
+                        document.querySelector('.loading-icon').style.display = 'flex';
+                        document.querySelector('.process-message').style.display = 'block';
+                        document.querySelector('.error-message').style.display = 'none';
+                        document.querySelector('.form').style.display = 'none';
+                        document.querySelector('.host').style.display = 'none';
+                        document.getElementById('main-form').submit();
+                    } else {
+                        window.location.href = `/flash_message?message=${encodeURIComponent(data.message)}&category=error`;
+                    }
+                });
+            });
+        }
+    }
+
+        function saveRoomId() {
+            const roomId = document.getElementById('room_id').value;
+            localStorage.setItem('room_id', roomId);
+        }
+
+        function loadRoomId() {
+            const roomId = localStorage.getItem('room_id');
+            if (roomId) {
+                document.getElementById('room_id').value = roomId;
+            }
+        }
+
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('aadhar').addEventListener('input', validateForm);
+            document.getElementById('name').addEventListener('input', validateForm);
+            document.getElementById('room_id').addEventListener('input',  function() {
+            validateForm();
+            saveRoomId();
+            });
+        });
+
+    </script>
+</head>
+<body>
+    <div class="container">
+        <img src="{{ url_for('static', filename='vote.png') }}" alt="Vote Image" style="width: 200px; height: auto; margin-bottom: -55px; margin-top: -25px;">
+        <h1>Face Recognition Voting System</h1>
+        <div class="messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="{{ category }}">
+                        <p>{{ message }}</p>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+        </div>
+        <div class="video-container">
+            <img src="{{ url_for('video_feed') }}" width="480" height="360">
+        </div>
+        <div class="loading-icon">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <div class="process-message" >
+                <p>face scanning in process , don't move ...</p>
+            </div>
+            <div class="form">
+            <form id="main-form" action="/add_faces"  method="post" onsubmit="event.preventDefault(); validateRoomId();">
+                <input type="text" id="name" name="name" placeholder="Enter your Name" required>
+                <div id="name-error" class="error-message">Please enter a valid Name (uppercase letters and spaces only)</div>
+                <input type="text" id="room_id" name="room_id" placeholder="Enter your Room ID" required>
+                <div id="room-id-error" class="error-message">Please enter a valid Room ID (digits or capital letters only)</div>
+                <input type="text" id="aadhar" name="aadhar" placeholder="Enter your Aadhar number" required>
+                <div id="aadhar-error" class="error-message">Please enter a valid 12-digit Aadhar number</div>
+                <button type="submit" onclick="showLoadingIcon()">Submit</button>
+            </form>
+        </div>
+        <a class="host" href="{{ url_for('host_login') }}" onclick="host_login()">I am the host?</a> 
+    </div>
+</body>
+</html>

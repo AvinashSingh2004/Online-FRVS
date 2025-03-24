@@ -19,6 +19,8 @@ from googleapiclient.discovery import build
 from datetime import datetime, timedelta
 import re
 import io
+import face_recognition
+import dlib
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # Needed for flashing messages
@@ -163,6 +165,7 @@ def check_if_exists(name, aadhar, room_id):
 room_candidates = {}
 expired_rooms = set()
 voted_rooms = {}
+voted_face_encodings = []  # List to store encodings of voters who have already voted
 
 def generate_room_id():
     return ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=6))
@@ -313,8 +316,12 @@ def make_file_non_editable(file_id):
     
 @app.route('/cast_vote', methods=['POST'])
 def cast_vote():
+    global voted_face_encodings  # Use the global list to track voted encodings
     video = None
     try:
+        # Load previously voted face encodings
+        load_voted_face_encodings()
+        
         # Load the pre-trained KNN model
         knn_model_path = 'data/knn_model.pkl'
         if not os.path.exists(knn_model_path) or os.path.getsize(knn_model_path) == 0:
@@ -327,50 +334,38 @@ def cast_vote():
             flash("KNN model file is corrupted. Please retrain the model.")
             return redirect(url_for('index'))
 
-        # Initialize webcam with DirectShow
+        # Initialize webcam
         video = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not video.isOpened():
             flash("Webcam not accessible. Ensure it's connected and not in use by other applications.")
             return redirect(url_for('vote', room_id=request.form.get('room_id')))
-        
+
         # Attempt to capture frame
         ret, frame = video.read()
         if not ret or frame is None:
             flash("Failed to receive video feed. Check camera permissions and functionality.")
             return redirect(url_for('vote', room_id=request.form.get('room_id')))
-        
-        # Apply night vision effect
-        frame = apply_night_vision(frame)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Load face detection model
-        facedetect = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        if facedetect.empty():
-            flash("Failed to load face detection model. Please check your OpenCV installation.")
-            return redirect(url_for('vote', room_id=request.form.get('room_id')))
+        # Convert the frame to RGB (required by face_recognition)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Detect faces
-        faces = facedetect.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-        if len(faces) == 0:
+         # Detect face locations and encodings
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+
+        if len(face_encodings) == 0:
             flash("No face detected. Please ensure your face is clearly visible to the camera.")
             return redirect(url_for('vote', room_id=request.form.get('room_id')))
-        
-        # Process detected faces
-        for (x, y, w, h) in faces:
-            crop_img = frame[y:y+h, x:x+w]
-            resized_img = cv2.resize(crop_img, (50, 50)).flatten().reshape(1, -1)
-            output = knn.predict(resized_img)
 
-            # Verify live face using eye blink detection
-            is_live_person = True  # Placeholder; implement actual blink detection if needed
-            if not is_live_person:
-                flash("Please use your live face for voting.")
-                return redirect(url_for('vote', room_id=request.form.get('room_id')))
-
-            vote_status = check_if_exists(output[0], request.form.get('aadhar'), request.form.get('room_id')) if 'check_if_exists' in globals() else "not_defined"
-            if vote_status == "not_defined":
-                flash("Function 'check_if_exists' is not implemented.")
-                return redirect(url_for('index'))
+        # Compare the detected face with the KNN model and check if it has already voted
+        for face_encoding in face_encodings:
+            # Check if the face has already voted
+            if len(voted_face_encodings) > 0:
+                matches = face_recognition.compare_faces(voted_face_encodings, face_encoding, tolerance=0.6)
+                if True in matches:
+                    speak("YOU HAVE ALREADY VOTED")
+                    flash("You have already voted with this face.")
+                    return redirect(url_for('index'))
 
             # Retrieve data from session
             name = session.get('name', '').strip().upper()
@@ -382,20 +377,24 @@ def cast_vote():
             if not name or not aadhar or not room_id or not vote_choice:
                 flash("Invalid input. Please try again.")
                 return redirect(url_for('vote', room_id=room_id))
-            
-             # Check if voter has already voted
+
+            # Check if voter has already voted
             vote_status = check_if_exists(name, aadhar, room_id)
             if vote_status == "already_voted":
                 speak("YOU HAVE ALREADY VOTED")
-                flash("You have already voted")
+                flash("You have already voted with this name and Aadhar number")
                 return redirect(url_for('index'))
 
+            # Save the face encoding of the voter
+            save_voted_face_encoding(face_encoding)
+            
+            # Record the vote
             ts = time.time()
             date = datetime.fromtimestamp(ts).strftime("%d-%m-%Y")
             timestamp = datetime.fromtimestamp(ts).strftime("%H:%M-%S")
             election_name = session.get('election_name', 'Election')
             votes_file = f"{election_name}_Votes.csv"
-            
+
             file_exists = os.path.exists(votes_file)
             with open(votes_file, "a", newline='') as csvfile:
                 writer = csv.writer(csvfile)
@@ -406,7 +405,6 @@ def cast_vote():
 
             # Announce successful face recognition
             speak("FACE RECOGNITION SUCCESSFUL")
-
             speak("YOUR VOTE HAS BEEN RECORDED")
             flash(f"Vote casted for {vote_choice}")
 
@@ -482,55 +480,33 @@ def add_faces():
     session['aadhar'] = aadhar
     session['room_id'] = room_id
 
-    # Ensure the data directory exists
-    if not os.path.exists('data/'):
-        os.makedirs('data/')
-
     # Initialize webcam
     video = initialize_webcam()
     if not video:
         flash("Failed to access webcam. Please check your camera.")
         return redirect(url_for('index'))
 
-    # Load face detection model
-    facedetect = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    if facedetect.empty():
-        flash("Failed to load face detection model. Please check your OpenCV installation.")
-        video.release()
-        return redirect(url_for('index'))
-
-    # Capture face samples
-    faces_data = []
-    i = 0
-    frames_total = 51  # Number of face samples to capture
-    capture_after_frame = 2  # Capture every nth frame
-
+    face_encodings = []
     try:
-        while True:
+        while len(face_encodings) < 20:  # Capture 20 face encodings
             ret, frame = video.read()
             if not ret:
                 flash("Failed to capture video. Please ensure your webcam is functioning properly.")
                 break
 
-            # Apply night vision effect (customize as needed)
-            frame = apply_night_vision(frame)
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Convert the frame to RGB (required by face_recognition)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Detect faces
-            faces = facedetect.detectMultiScale(gray, 1.3, 5)
-            for (x, y, w, h) in faces:
-                crop_img = frame[y:y+h, x:x+w]
-                resized_img = cv2.resize(crop_img, (50, 50))
-                if len(faces_data) < frames_total and i % capture_after_frame == 0:
-                    faces_data.append(resized_img)
-                i += 1
-                cv2.putText(frame, str(len(faces_data)), (50, 50), cv2.FONT_HERSHEY_COMPLEX, 1, (50, 50, 255), 1)
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (50, 50, 255), 1)
+            # Detect face locations and encodings
+            face_locations = face_recognition.face_locations(rgb_frame)
+            encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+
+            if encodings:
+                face_encodings.append(encodings[0])  # Add the first detected face encoding
 
             # Display the frame
             cv2.imshow('frame', frame)
-            k = cv2.waitKey(1)
-            if k == ord('q') or len(faces_data) >= frames_total:
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
     except Exception as e:
         flash(f"An error occurred during face capture: {e}")
@@ -539,65 +515,78 @@ def add_faces():
             video.release()
         cv2.destroyAllWindows()
 
-    # Convert captured faces to numpy array
-    faces_data = np.asarray(faces_data)
-    if faces_data.size == 0:
+    if not face_encodings:
         flash("No faces were captured. Please try again.")
         return redirect(url_for('index'))
 
-    # Flatten each face image (e.g., from (50, 50, 3) to 7500 features)
-    faces_data = faces_data.reshape((faces_data.shape[0], -1))
-
-    # Load existing data from a single pickle file
+    # Load existing data
     data_file_path = 'data/data.pkl'
     if os.path.exists(data_file_path):
         try:
             with open(data_file_path, 'rb') as f:
                 data = pickle.load(f)
-            existing_faces = data['faces']
+            existing_encodings = data['encodings']
             names = data['names']
-            # Ensure consistency in loaded data
-            if len(existing_faces) != len(names):
-                min_length = min(len(existing_faces), len(names))
-                existing_faces = existing_faces[:min_length]
-                names = names[:min_length]
-                flash(f"Warning: Existing data had inconsistent sample numbers. Truncated to {min_length} samples.")
-        except (pickle.UnpicklingError, EOFError, KeyError, ValueError):
+        except (pickle.UnpicklingError, EOFError, KeyError, ValueError) as e:
+            print(f"Error loading data file: {e}")
             flash("Data file is corrupted or invalid. Reinitializing.")
-            existing_faces = np.empty((0, faces_data.shape[1]))
+            existing_encodings = []
             names = []
     else:
-        existing_faces = np.empty((0, faces_data.shape[1]))
+        existing_encodings = []
         names = []
 
-    # Append new face data
-    if len(faces_data) > 0:
-        combined_faces = np.vstack((existing_faces, faces_data)) if existing_faces.size > 0 else faces_data
-        names.extend([name] * len(faces_data))
+    # Append new face encodings
+    existing_encodings.extend(face_encodings)
+    names.extend([name] * len(face_encodings))
 
-        # Save updated data to a single pickle file
-        data = {'faces': combined_faces, 'names': names}
-        try:
-            with open(data_file_path, 'wb') as f:
-                pickle.dump(data, f)
-        except Exception as e:
-            flash(f"Error saving data: {e}")
-            return redirect(url_for('index'))
+    # Save updated data
+    data = {'encodings': existing_encodings, 'names': names}
+    with open(data_file_path, 'wb') as f:
+        pickle.dump(data, f)
 
-        # Train the KNN model
-        try:
-            knn = KNeighborsClassifier(n_neighbors=5)
-            knn.fit(combined_faces, names)
-            with open('data/knn_model.pkl', 'wb') as model_file:
-                pickle.dump(knn, model_file)
-            print("KNN model trained and saved successfully.")
-        except Exception as e:
-            flash(f"An error occurred while training the KNN model: {e}")
-            return redirect(url_for('index'))
+    # Train the KNN model
+    try:
+        knn = KNeighborsClassifier(n_neighbors=5)
+        knn.fit(existing_encodings, names)
+        with open('data/knn_model.pkl', 'wb') as model_file:
+            pickle.dump(knn, model_file)
+        flash("Faces added successfully and KNN model updated.")
+    except Exception as e:
+        flash(f"An error occurred while training the KNN model: {e}")
+        return redirect(url_for('index'))
 
-    flash("Faces added successfully and KNN model updated.")
     speak("YOUR FACE HAS BEEN RECORDED")
     return redirect(url_for('vote', room_id=room_id))
 
+# Add this new function to load previously voted face encodings
+def load_voted_face_encodings():
+    """Load face encodings of people who have already voted."""
+    global voted_face_encodings
+    voted_encodings_file = 'data/voted_face_encodings.pkl'
+    if os.path.exists(voted_encodings_file):
+        try:
+            with open(voted_encodings_file, 'rb') as f:
+                voted_face_encodings = pickle.load(f)
+            print(f"Loaded {len(voted_face_encodings)} voted face encodings")
+        except (pickle.UnpicklingError, EOFError) as e:
+            print(f"Error loading voted face encodings: {e}")
+            voted_face_encodings = []
+    else:
+        voted_face_encodings = []
+        
+# Add this new function to save voted face encodings
+def save_voted_face_encoding(face_encoding):
+    """Save a face encoding of someone who has voted."""
+    global voted_face_encodings
+    voted_face_encodings.append(face_encoding)
+    voted_encodings_file = 'data/voted_face_encodings.pkl'
+    os.makedirs('data', exist_ok=True)
+    with open(voted_encodings_file, 'wb') as f:
+        pickle.dump(voted_face_encodings, f)
+    print(f"Saved face encoding. Total voted encodings: {len(voted_face_encodings)}")
+
 if __name__ == '__main__':
+    # Create data directory if it doesn't exist
+    os.makedirs('data', exist_ok=True)
     app.run(debug=True)        
